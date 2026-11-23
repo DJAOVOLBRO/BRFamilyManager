@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BR Family Manager</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:#10131b;color:white;font-family:Arial,sans-serif}
+.container{max-width:850px;margin:auto}
+h1{color:#ff4545}
+.card{background:#1c2230;padding:18px;margin:15px 0;border-radius:12px}
+input,select,button{width:100%;padding:12px;margin:7px 0;border-radius:8px;border:1px solid #394253;background:#111722;color:white}
+button{background:#d8323c;border:0;font-weight:bold;cursor:pointer}
+.secondary{background:#394253}
+.item{padding:12px;margin:8px 0;background:#111722;border-radius:8px}
+.note{color:#aab2c0;font-size:13px}
+.status{color:#ff5555}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+max-width:500px{.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>BR Family Manager</h1>
+<p class="note">Панель управления аккаунтами и точками набора</p>
+
+<div class="card">
+<h2>Мои аккаунты</h2>
+<div id="accounts"></div>
+<h3>Добавить аккаунт</h3>
+<input id="nickname" placeholder="Игровой ник">
+<input id="server" placeholder="Название сервера">
+<button onclick="addAccount()">Добавить аккаунт</button>
+<p class="note">Статус пока демонстрационный.</p>
+</div>
+
+<div class="card">
+<h2>Точки набора</h2>
+<input id="pointName" placeholder="Название точки">
+<input id="pointServer" placeholder="Название сервера">
+<div class="grid">
+<input id="coordX" type="number" step="any" placeholder="Координата X">
+<input id="coordY" type="number" step="any" placeholder="Координата Y">
+<input id="coordZ" type="number" step="any" placeholder="Координата Z">
+<input id="radius" type="number" min="1" max="100" value="10" placeholder="Радиус в метрах">
+</div>
+<button onclick="addPoint()">Сохранить точку</button>
+<div id="points"></div>
+</div>
+
+<div class="card">
+<h2>Назначение точек аккаунтам</h2>
+<p class="note">Выбери отдельную точку для каждого аккаунта.</p>
+<div id="assignments"></div>
+</div>
+
+<div class="card">
+<h2>Общий журнал</h2>
+<button class="secondary" onclick="clearLogs()">Очистить журнал</button>
+<div id="logs" class="note"></div>
+</div>
+</div>
+
+<script>
+let accounts = JSON.parse(localStorage.getItem("br_accounts") || "[]");
+let points = JSON.parse(localStorage.getItem("br_points") || "[]");
+let logs = JSON.parse(localStorage.getItem("br_logs") || "[]");
+
+points.forEach(p => {
+  if (!p.id) p.id = crypto.randomUUID();
+});
+localStorage.setItem("br_points", JSON.stringify(points));
+
+function safe(v) {
+  return String(v).replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;",
+    '"':"&quot;", "'":"'"
+  })[c]);
+}
+
+function save() {
+  localStorage.setItem("br_accounts", JSON.stringify(accounts));
+  localStorage.setItem("br_points", JSON.stringify(points));
+  localStorage.setItem("br_logs", JSON.stringify(logs));
+}
+
+function log(message) {
+  logs.unshift(new Date().toLocaleString("ru-RU") + " — " + message);
+  logs = logs.slice(0, 100);
+  save();
+  renderLogs();
+}
+function toggleAccountStatus(index) {
+  accounts[index].online = !accounts[index].online;
+  save();
+  log("Статус аккаунта " + accounts[index].nickname + ": " + (accounts[index].online ? "Онлайн" : "Оффлайн"));
+  renderAccounts();
+}
+function deleteAccount(index) {
+  const nickname = accounts[index].nickname;
+
+  if (!confirm("Удалить аккаунт " + nickname + "?")) return;
+
+  accounts.splice(index, 1);
+  save();
+  log("Удалён аккаунт: " + nickname);
+
+  renderAccounts();
+  renderAssignments();
+}
+function addAccount() {
+  if (accounts.length >= 5) {
+  alert("Можно добавить максимум 5 аккаунтов!");
+  return;
+}
+  let nickname = document.getElementById("nickname").value.trim();
+  let server = document.getElementById("server").value.trim();
+
+  if (!nickname || !server) {
+    alert("Заполни ник и сервер.");
+    return;
+  }
+  if (accounts.length >= 5) {
+    alert("Максимум 5 аккаунтов.");
+    return;
+  }
+
+  accounts.push({ nickname, server, pointId: "", online: false });
+  save();
+  log("Добавлен аккаунт: " + nickname);
+  renderAccounts();
+  renderAssignments();
+
+  document.getElementById("nickname").value = "";
+  document.getElementById("server").value = "";
+}
+
+function addPoint() {
+  let name = document.getElementById("pointName").value.trim();
+  let server = document.getElementById("pointServer").value.trim();
+  let x = document.getElementById("coordX").value.trim();
+  let y = document.getElementById("coordY").value.trim();
+  let z = document.getElementById("coordZ").value.trim();
+  let radius = Number(document.getElementById("radius").value);
+
+  if (!name || !server || x === "" ||y === "" || z === "") {
+    alert("Заполни название, сервер и координаты.");
+    return;
+  }
+
+  if (![x,y,z].every(v => Number.isFinite(Number(v)))) {
+    alert("Координаты должны быть числами.");
+    return;
+  }
+
+  if (!Number.isFinite(radius) || radius < 1 || radius > 100) {
+    alert("Радиус должен быть от 1 до 100 метров.");
+    return;
+  }
+
+  points.push({
+    id: crypto.randomUUID(),
+    name, server, x, y, z, radius
+  });
+
+  save();
+  log("Добавлена точка: " + name);
+  renderPoints();
+  renderAssignments();
+
+  ["pointName","pointServer","coordX","coordY","coordZ"]
+    .forEach(id => document.getElementById(id).value = "");
+  document.getElementById("radius").value = 10;
+}
+
+function assignPoint(accountIndex, pointId) {
+  accounts[accountIndex].pointId = pointId;
+  save();
+  log("Изменена точка аккаунта: " + accounts[accountIndex].nickname);
+  renderAccounts();
+  renderAssignments();
+}
+
+function deletePoint(index) {
+  const name = points[index].name;
+  if (!confirm("Удалить точку «" + name + "»?")) return;
+
+  const id = points[index].id;
+  points.splice(index, 1);
+
+  accounts.forEach(a => {
+    if (a.pointId === id) a.pointId = "";
+  });
+
+  save();
+  log("Удалена точка: " + name);
+  renderPoints();
+  renderAssignments();
+  renderAccounts();
+}
+
+function editPoint(index) {
+  const p = points[index];
+
+  const name = prompt("Название точки:", p.name);
+  if (name === null || !name.trim()) return;
+
+  const server = prompt("Сервер:", p.server);
+  if (server === null || !server.trim()) return;
+
+  const x = prompt("Координата X:", p.x);
+  if (x === null || x.trim() === "" || !Number.isFinite(Number(x))) {
+    alert("Некорректная координата X");
+    return;
+  }
+
+  const y = prompt("Координата Y:", p.y);
+  if (y === null || y.trim() === "" || !Number.isFinite(Number(y))) {
+    alert("Некорректная координата Y");
+    return;
+  }
+
+  const z = prompt("Координата Z:", p.z);
+  if (z === null || z.trim() === "" || !Number.isFinite(Number(z))) {
+    alert("Некорректная координата Z");
+    return;
+  }
+
+  const radiusInput = prompt("Радиус от 1 до 100 метров:", p.radius);
+  if (radiusInput === null) return;
+
+  const radius = Number(radiusInput);
+  if (!Number.isFinite(radius) || radius < 1 || radius > 100) {
+    alert("Радиус должен быть от 1 до 100 метров");
+    return;
+  }
+
+  p.name = name.trim();
+  p.server = server.trim();
+  p.x = x.trim();
+  p.y = y.trim();
+  p.z = z.trim();
+  p.radius = radius;
+
+  save();
+  log("Изменена точка: " + p.name);
+  renderPoints();
+  renderAssignments();
+  renderAccounts();
+}
+
+function renderAccounts() {
+  document.getElementById("accounts").innerHTML =
+    accounts.length ? accounts.map((a, i) => {
+      let p = points.find(p => p.id === a.pointId);
+      return `<div class="item">
+        <b>${safe(a.nickname)}</b> — ${safe(a.server)}
+        <span class="status" style="color:${a.online ? '#22c55e' : '#ef4444'}">
+  ● ${a.online ? "Онлайн" : "Оффлайн"}
+</span>
+<button class="secondary" onclick="toggleAccountStatus(${i})">
+  Изменить статус
+</button>
+        <p class="note">Точка: ${p ? safe(p.name) : "Не назначена"}</p>
+        <button class="secondary" onclick="deleteAccount(${i})">Удалить аккаунт</button>
+      </div>`;
+    }).join("") : '<p class="note">Аккаунтов пока нет.</p>';
+}
+
+function renderPoints() {
+  document.getElementById("points").innerHTML =
+    points.length ? points.map((p, i) => `
+      <div class="item">
+        <b>${safe(p.name)}</b>
+        <p class="note">Сервер: ${safe(p.server)}</p>
+        <p>X: ${safe(p.x)} | Y: ${safe(p.y)} | Z: ${safe(p.z)}</p>
+        <p>Радиус: ${safe(p.radius)} м</p>
+        <button class="secondary" onclick="editPoint(${i})">Редактировать</button>
+        <button class="secondary" onclick="deletePoint(${i})">Удалить точку</button>
+      </div>
+    `).join("") : '<p class="note">Точек пока нет.</p>';
+}
+
+function renderAssignments() {
+  document.getElementById("assignments").innerHTML =
+    accounts.length ? accounts.map((a, i) => {
+      let options = points.filter(
+        p => p.server.toLowerCase() === a.server.toLowerCase()
+      );
+      let selected = options.some(p => p.id === a.pointId) ? a.pointId : "";
+
+      return `<div class="item">
+        <b>${safe(a.nickname)}</b>
+        <select onchange="assignPoint(${i}, this.value)">
+          <option value="">Не назначена</option>
+          ${options.map(p =>
+            `<option value="${safe(p.id)}" ${p.id === selected ? "selected" : ""}>${safe(p.name)}</option>`
+          ).join("")}
+        </select>
+        ${options.length ? "" : '<p class="note">Нет точек для этого сервера.</p>'}
+      </div>`;
+    }).join("") : '<p class="note">Сначала добавь аккаунт.</p>';
+}
+function clearLogs() {
+  if (!confirm("Точно очистить весь журнал?")) return;
+  logs = [];
+  save();
+  renderLogs();
+}
+function renderLogs() {
+  document.getElementById("logs").innerHTML =
+    logs.length ? logs.map(l =>
+      `<div class="item">${safe(l)}</div>`
+    ).join("") : "Записей пока нет.";
+}
+
+renderAccounts();
+renderPoints();
+renderAssignments();
+renderLogs();
+</script>
+</body>
+</html>
