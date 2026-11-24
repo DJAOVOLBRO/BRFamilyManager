@@ -34,7 +34,23 @@ max-width:500px{.grid{grid-template-columns:1fr}}
 <button onclick="addAccount()">Добавить аккаунт</button>
 <p class="note">Статус пока демонстрационный.</p>
 </div>
+<div class="card">
+  <h2>Управление ботом</h2>
 
+  <label>Назначенная точка набора</label>
+  <select id="botPoint" onchange="changeBotPoint(this.value)">
+    <option value="">Точка не выбрана</option>
+  </select>
+
+ <p>Статус бота: <span id="botStatus">Не подключён</span></p>
+
+<button onclick="startBot()">Запустить бота</button>
+<button class="secondary" onclick="stopBot()">Остановить бота</button>
+
+<p class="note">
+  Управление игровым ботом пока работает в тестовом режиме.
+</p>
+</div>
 <div class="card">
 <h2>Точки набора</h2>
 <input id="pointName" placeholder="Название точки">
@@ -66,7 +82,8 @@ max-width:500px{.grid{grid-template-columns:1fr}}
 let accounts = JSON.parse(localStorage.getItem("br_accounts") || "[]");
 let points = JSON.parse(localStorage.getItem("br_points") || "[]");
 let logs = JSON.parse(localStorage.getItem("br_logs") || "[]");
-
+let botPoint = localStorage.getItem("br_botPoint") || "";
+let botRunning = localStorage.getItem("br_botRunning") === "true";
 points.forEach(p => {
   if (!p.id) p.id = crypto.randomUUID();
 });
@@ -83,13 +100,39 @@ function save() {
   localStorage.setItem("br_accounts", JSON.stringify(accounts));
   localStorage.setItem("br_points", JSON.stringify(points));
   localStorage.setItem("br_logs", JSON.stringify(logs));
+  localStorage.setItem("br_botPoint", botPoint);
+  localStorage.setItem("br_botRunning", String(botRunning));
 }
+
 
 function log(message) {
   logs.unshift(new Date().toLocaleString("ru-RU") + " — " + message);
   logs = logs.slice(0, 100);
   save();
   renderLogs();
+}
+function changeBotPoint(value) {
+  botPoint = value;
+  save();
+  log("Назначенная точка бота изменена");
+}
+function startBot() {
+  if (!botPoint) {
+    alert("Сначала выбери точку набора!");
+    return;
+  }
+
+  document.getElementById("botStatus").textContent = "Запущен (тест)";
+  botRunning = true;
+save();
+  log("Бот запущен в тестовом режиме");
+}
+
+function stopBot() {
+  document.getElementById("botStatus").textContent = "Остановлен";
+  botRunning = false;
+save();
+  log("Бот остановлен");
 }
 function toggleAccountStatus(index) {
   accounts[index].online = !accounts[index].online;
@@ -136,7 +179,7 @@ function addAccount() {
   document.getElementById("server").value = "";
 }
 
-function addPoint() {
+ function addPoint() {
   let name = document.getElementById("pointName").value.trim();
   let server = document.getElementById("pointServer").value.trim();
   let x = document.getElementById("coordX").value.trim();
@@ -188,6 +231,9 @@ function deletePoint(index) {
 
   const id = points[index].id;
   points.splice(index, 1);
+  if (botPoint === id) {
+  botPoint = "";
+}
 
   accounts.forEach(a => {
     if (a.pointId === id) a.pointId = "";
@@ -196,6 +242,7 @@ function deletePoint(index) {
   save();
   log("Удалена точка: " + name);
   renderPoints();
+  renderBotPoints();
   renderAssignments();
   renderAccounts();
 }
@@ -281,7 +328,18 @@ function renderPoints() {
       </div>
     `).join("") : '<p class="note">Точек пока нет.</p>';
 }
+function renderBotPoints() {
+  const select = document.getElementById("botPoint");
+  if (!select) return;
 
+  select.innerHTML =
+    '<option value="">Точка не выбрана</option>' +
+    points.map(p =>
+      `<option value="${safe(p.id)}" ${p.id === botPoint ? "selected" : ""}>
+        ${safe(p.name)} — ${safe(p.server)}
+      </option>`
+    ).join("");
+}
 function renderAssignments() {
   document.getElementById("assignments").innerHTML =
     accounts.length ? accounts.map((a, i) => {
@@ -317,6 +375,9 @@ function renderLogs() {
 
 renderAccounts();
 renderPoints();
+renderBotPoints();
+document.getElementById("botStatus").textContent =
+  botRunning ? "Запущен (тест)" : "Остановлен";
 renderAssignments();
 renderLogs();
 </script>
