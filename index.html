@@ -52,6 +52,12 @@ max-width:500px{.grid{grid-template-columns:1fr}}
 </p>
 </div>
 <div class="card">
+  <h2>Журнал бота</h2>
+  <div id="botLogs">
+    Записей пока нет.
+  </div>
+</div>
+<div class="card">
 <h2>Точки набора</h2>
 <input id="pointName" placeholder="Название точки">
 <input id="pointServer" placeholder="Название сервера">
@@ -82,6 +88,7 @@ max-width:500px{.grid{grid-template-columns:1fr}}
 let accounts = JSON.parse(localStorage.getItem("br_accounts") || "[]");
 let points = JSON.parse(localStorage.getItem("br_points") || "[]");
 let logs = JSON.parse(localStorage.getItem("br_logs") || "[]");
+let botLogs = JSON.parse(localStorage.getItem("br_botLogs") || "[]");
 let botPoint = localStorage.getItem("br_botPoint") || "";
 let botRunning = localStorage.getItem("br_botRunning") === "true";
 points.forEach(p => {
@@ -100,6 +107,7 @@ function save() {
   localStorage.setItem("br_accounts", JSON.stringify(accounts));
   localStorage.setItem("br_points", JSON.stringify(points));
   localStorage.setItem("br_logs", JSON.stringify(logs));
+  localStorage.setItem("br_botLogs", JSON.stringify(botLogs));
   localStorage.setItem("br_botPoint", botPoint);
   localStorage.setItem("br_botRunning", String(botRunning));
 }
@@ -114,25 +122,78 @@ function log(message) {
 function changeBotPoint(value) {
   botPoint = value;
   save();
+
+  const point = points.find(p => p.id === value);
+  const pointName = point ? point.name : "Точка не выбрана";
+
   log("Назначенная точка бота изменена");
+  logBot("Назначена точка: " + pointName);
+}
+function logBot(message) {
+  botLogs.unshift(new Date().toLocaleString("ru-RU") + " — " + message);
+  botLogs = botLogs.slice(0, 100);
+  save();
+  renderBotLogs();
 }
 function startBot() {
+  if (botRunning) {
+    alert("Бот уже запущен!");
+    return;
+  }
   if (!botPoint) {
     alert("Сначала выбери точку набора!");
     return;
   }
+  if (!confirm("Вы уверены, что хотите запустить бота?")) {
+    return;
+  }
 
   document.getElementById("botStatus").textContent = "Запущен (тест)";
-  botRunning = true;
+ botRunning = true;
 save();
-  log("Бот запущен в тестовом режиме");
+log("Бот запущен в тестовом режиме");
+logBot("Бот запущен");
 }
 
 function stopBot() {
+  if (!botRunning) {
+    alert("Бот уже остановлен!");
+    return;
+  }
+  if (!confirm("Вы уверены, что хотите остановить бота?")) {
+  return;
+}
   document.getElementById("botStatus").textContent = "Остановлен";
   botRunning = false;
 save();
   log("Бот остановлен");
+  logBot("Бот остановлен");
+}
+function toggleAccountStatus(index) {
+  accounts[index].online = !accounts[index].online;
+  save();
+  log("Статус аккаунта " + accounts[index].nickname + ": " + (accounts[index].online ? "Онлайн" : "Оффлайн"));
+  renderAccounts();
+}
+  botRunning = true;
+save();
+log("Бот запущен в тестовом режиме");
+logBot("Бот запущен");
+
+function stopBot() {
+  if (!botRunning) {
+    alert("Бот уже остановлен!");
+    return;
+  }
+
+  if (!confirm("Вы уверены, что хотите остановить бота?")) {
+    return;
+  }
+  document.getElementById("botStatus").textContent = "Остановлен";
+  botRunning = false;
+save();
+  log("Бот остановлен");
+  logBot("Бот остановлен");
 }
 function toggleAccountStatus(index) {
   accounts[index].online = !accounts[index].online;
@@ -372,7 +433,12 @@ function renderLogs() {
       `<div class="item">${safe(l)}</div>`
     ).join("") : "Записей пока нет.";
 }
-
+function renderBotLogs() {
+  document.getElementById("botLogs").innerHTML =
+    botLogs.length ? botLogs.map(l =>
+      `<div class="item">${safe(l)}</div>`
+    ).join("") : "Записей пока нет.";
+}
 renderAccounts();
 renderPoints();
 renderBotPoints();
@@ -380,6 +446,7 @@ document.getElementById("botStatus").textContent =
   botRunning ? "Запущен (тест)" : "Остановлен";
 renderAssignments();
 renderLogs();
+renderBotLogs();
 </script>
 </body>
 </html>
