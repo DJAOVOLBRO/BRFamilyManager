@@ -10,6 +10,37 @@ body{margin:0;padding:20px;background:#10131b;color:white;font-family:Arial,sans
 .container{max-width:850px;margin:auto}
 h1{color:#ff4545}
 .card{background:#1c2230;padding:18px;margin:15px 0;border-radius:12px}
+#loginCard {
+  max-width: 420px;
+  margin: 70px auto;
+  padding: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 22px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.16),
+    rgba(255, 255, 255, 0.04)
+  );
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  text-align: center;
+}
+
+#loginCard h2 {
+  color: white;
+  margin-bottom: 24px;
+}
+
+#loginCard input {
+  background: rgba(10, 15, 25, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#loginCard button {
+  margin-top: 16px;
+  border-radius: 10px;
+}
 input,select,button{width:100%;padding:12px;margin:7px 0;border-radius:8px;border:1px solid #394253;background:#111722;color:white}
 button{background:#d8323c;border:0;font-weight:bold;cursor:pointer}
 .secondary{background:#394253}
@@ -84,6 +115,96 @@ max-width: 500px {
 .modal-buttons button {
   flex: 1;
 }
+.bot-controls {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 18px 0;
+}
+
+.bot-controls button {
+  flex: 1;
+  min-width: 180px;
+  padding: 14px 20px;
+  border-radius: 14px;
+  font-weight: 600;
+  transition: 0.25s ease;
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+}
+
+.bot-start {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.3), rgba(34, 197, 94, 0.12));
+  border: 1px solid rgba(74, 222, 128, 0.5);
+  color: #86efac;
+}
+
+.bot-stop {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(239, 68, 68, 0.12));
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  color: #fca5a5;
+}
+
+.bot-controls button:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.2);
+}
+
+.bot-note {
+  opacity: 0.8;
+  margin-top: 10px;
+}
+/* Стеклянный стиль выпадающих списков */
+select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.65);
+  color: white;
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  outline: none;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+select:hover,
+select:focus {
+  border-color: rgba(96, 165, 250, 0.7);
+  box-shadow: 0 0 14px rgba(96, 165, 250, 0.18);
+}
+
+select option {
+  background: #172033;
+  color: white;
+}
+/* Светящийся статус бота */
+.bot-status {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 6px 13px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.bot-status.offline {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(248, 113, 113, 0.4);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.15);
+}
+
+.bot-status.online {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(74, 222, 128, 0.4);
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.2);
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -134,12 +255,22 @@ supabaseClient
     <option value="">Точка не выбрана</option>
   </select>
 
- <p>Статус бота: <span id="botStatus">Не подключён</span></p>
+  <p class="bot-status-line">
+  Статус бота:
+  <span id="botStatus" class="bot-status offline">Не подключён</span>
+</p>
 
-<button onclick="startBot()">Запустить бота</button>
-<button class="secondary" onclick="stopBot()">Остановить бота</button>
+<div class="bot-controls">
+  <button class="bot-start" onclick="startBot()">
+    <span>▶</span> Запустить бота
+  </button>
 
-<p class="note">
+  <button class="bot-stop" onclick="stopBot()">
+    <span>■</span> Остановить бота
+  </button>
+</div>
+
+<p class="note bot-note">
   Управление игровым ботом пока работает в тестовом режиме.
 </p>
 </div>
@@ -208,7 +339,19 @@ function save() {
   localStorage.setItem("br_botPoint", botPoint);
   localStorage.setItem("br_botRunning", String(botRunning));
 }
+window.addEventListener("DOMContentLoaded", function() {
+  const status = document.getElementById("botStatus");
 
+  if (!status) return;
+
+  if (botRunning) {
+    status.textContent = "Запущен (тест)";
+    status.className = "bot-status online";
+  } else {
+    status.textContent = "Остановлен";
+    status.className = "bot-status offline";
+  }
+});
 
 function log(message) {
   logs.unshift(new Date().toLocaleString("ru-RU") + " — " + message);
@@ -251,24 +394,35 @@ async function startBot() {
 
   if (!confirmed) return;
 
-  document.getElementById("botStatus").textContent = "Запущен (тест)";
+  const status = document.getElementById("botStatus");
+status.textContent = "Запущен (тест)";
+status.className = "bot-status online";
   botRunning = true;
   save();
   log("Бот запущен в тестовом режиме");
   logBot("Бот запущен");
 }
 
-function stopBot() {
+
+async function stopBot() {
   if (!botRunning) {
-    alert("Бот уже остановлен!");
+    await showModal("Внимание", "Бот уже остановлен!");
     return;
   }
-  if (!confirm("Вы уверены, что хотите остановить бота?")) {
-  return;
-}
-  document.getElementById("botStatus").textContent = "Остановлен";
+
+  const confirmed = await showModal(
+    "Остановка бота",
+    "Вы уверены, что хотите остановить бота?",
+    "confirm"
+  );
+
+  if (!confirmed) return;
+
+  const status = document.getElementById("botStatus");
+status.textContent = "Остановлен";
+status.className = "bot-status offline";
   botRunning = false;
-save();
+  save();
   log("Бот остановлен");
   logBot("Бот остановлен");
 }
@@ -279,31 +433,22 @@ function toggleAccountStatus(index) {
   renderAccounts();
 }
 
-function stopBot() {
-  if (!botRunning) {
-    alert("Бот уже остановлен!");
-    return;
-  }
-
-  if (!confirm("Вы уверены, что хотите остановить бота?")) {
-    return;
-  }
-  document.getElementById("botStatus").textContent = "Остановлен";
-  botRunning = false;
-save();
-  log("Бот остановлен");
-  logBot("Бот остановлен");
-}
 function toggleAccountStatus(index) {
   accounts[index].online = !accounts[index].online;
   save();
   log("Статус аккаунта " + accounts[index].nickname + ": " + (accounts[index].online ? "Онлайн" : "Оффлайн"));
   renderAccounts();
 }
-function deleteAccount(index) {
+async function deleteAccount(index) {
   const nickname = accounts[index].nickname;
 
-  if (!confirm("Удалить аккаунт " + nickname + "?")) return;
+  const confirmed = await showModal(
+    "Удаление аккаунта",
+    "Точно удалить аккаунт " + nickname + "?",
+    "confirm"
+  );
+
+  if (!confirmed) return;
 
   accounts.splice(index, 1);
   save();
@@ -311,25 +456,46 @@ function deleteAccount(index) {
 
   renderAccounts();
   renderAssignments();
+
+  await showModal("Готово", "Аккаунт " + nickname + " удалён!");
 }
-function addAccount() {
+async function addAccount() {
   if (accounts.length >= 5) {
-  alert("Можно добавить максимум 5 аккаунтов!");
-  return;
-}
-  let nickname = document.getElementById("nickname").value.trim();
-  let server = document.getElementById("server").value.trim();
+    await showModal("Лимит аккаунтов", "Можно добавить максимум 5 аккаунтов!");
+    return;
+  }
+
+  const nickname = document.getElementById("nickname").value.trim();
+  const server = document.getElementById("server").value.trim();
 
   if (!nickname || !server) {
-    alert("Заполни ник и сервер.");
-    return;
-  }
-  if (accounts.length >= 5) {
-    alert("Максимум 5 аккаунтов.");
+    await showModal("Не все данные заполнены", "Заполни ник и сервер.");
     return;
   }
 
-  accounts.push({ nickname, server, pointId: "", online: false });
+  const { data, error } = await supabaseClient
+    .from("game_accounts")
+    .insert({
+      nickname: nickname,
+      server: server,
+      status: "Оффлайн"
+    })
+    .select()
+    .single();
+
+  if (error) {
+    await showModal("Ошибка сохранения", error.message);
+    return;
+  }
+
+  accounts.push({
+    id: data.id,
+    nickname: data.nickname,
+    server: data.server,
+    pointId: "",
+    online: false
+  });
+
   save();
   log("Добавлен аккаунт: " + nickname);
   renderAccounts();
@@ -337,9 +503,11 @@ function addAccount() {
 
   document.getElementById("nickname").value = "";
   document.getElementById("server").value = "";
+
+  await showModal("Готово", "Аккаунт " + nickname + " сохранён в Supabase!");
 }
 
- function addPoint() {
+ async function addPoint() {
   let name = document.getElementById("pointName").value.trim();
   let server = document.getElementById("pointServer").value.trim();
   let x = document.getElementById("coordX").value.trim();
@@ -347,20 +515,20 @@ function addAccount() {
   let z = document.getElementById("coordZ").value.trim();
   let radius = Number(document.getElementById("radius").value);
 
-  if (!name || !server || x === "" ||y === "" || z === "") {
-    alert("Заполни название, сервер и координаты.");
-    return;
-  }
+  if (!name || !server || x === "" || y === "" || z === "") {
+  await showModal("Не все данные заполнены", "Заполни название, сервер и координаты.");
+  return;
+}
 
-  if (![x,y,z].every(v => Number.isFinite(Number(v)))) {
-    alert("Координаты должны быть числами.");
-    return;
-  }
+  if (![x, y, z].every(v => Number.isFinite(Number(v)))) {
+  await showModal("Ошибка координат", "Координаты X, Y и Z должны быть числами.");
+  return;
+}
 
   if (!Number.isFinite(radius) || radius < 1 || radius > 100) {
-    alert("Радиус должен быть от 1 до 100 метров.");
-    return;
-  }
+  await showModal("Ошибка радиуса", "Радиус должен быть от 1 до 100 метров.");
+  return;
+}
 
   points.push({
     id: crypto.randomUUID(),
@@ -375,6 +543,7 @@ function addAccount() {
   ["pointName","pointServer","coordX","coordY","coordZ"]
     .forEach(id => document.getElementById(id).value = "");
   document.getElementById("radius").value = 10;
+  await showModal("Готово", "Точка «" + name + "» успешно добавлена!");
 }
 
 function assignPoint(accountIndex, pointId) {
@@ -385,15 +554,23 @@ function assignPoint(accountIndex, pointId) {
   renderAssignments();
 }
 
-function deletePoint(index) {
+async function deletePoint(index) {
   const name = points[index].name;
-  if (!confirm("Удалить точку «" + name + "»?")) return;
+
+  const confirmed = await showModal(
+    "Удаление точки",
+    "Точно удалить точку «" + name + "»?",
+    "confirm"
+  );
+
+  if (!confirmed) return;
 
   const id = points[index].id;
   points.splice(index, 1);
+
   if (botPoint === id) {
-  botPoint = "";
-}
+    botPoint = "";
+  }
 
   accounts.forEach(a => {
     if (a.pointId === id) a.pointId = "";
@@ -405,58 +582,85 @@ function deletePoint(index) {
   renderBotPoints();
   renderAssignments();
   renderAccounts();
+
+  await showModal("Готово", "Точка «" + name + "» удалена!");
 }
+
+let editingPointIndex = null;
 
 function editPoint(index) {
   const p = points[index];
+  editingPointIndex = index;
 
-  const name = prompt("Название точки:", p.name);
-  if (name === null || !name.trim()) return;
+  document.getElementById("editPointName").value = p.name;
+  document.getElementById("editPointServer").value = p.server;
+  document.getElementById("editPointX").value = p.x;
+  document.getElementById("editPointY").value = p.y;
+  document.getElementById("editPointZ").value = p.z;
+  document.getElementById("editPointRadius").value = p.radius;
 
-  const server = prompt("Сервер:", p.server);
-  if (server === null || !server.trim()) return;
+  document.getElementById("editPointModal").style.display = "flex";
+}
 
-  const x = prompt("Координата X:", p.x);
-  if (x === null || x.trim() === "" || !Number.isFinite(Number(x))) {
-    alert("Некорректная координата X");
+window.addEventListener("DOMContentLoaded", function() {
+  document.getElementById("editPointCancel").addEventListener("click", function() {
+  document.getElementById("editPointModal").style.display = "none";
+  editingPointIndex = null;
+});
+});
+window.addEventListener("DOMContentLoaded", function() {
+  document.getElementById("editPointSave").addEventListener("click", async function() {
+  if (editingPointIndex === null) return;
+
+  const p = points[editingPointIndex];
+
+  const name = document.getElementById("editPointName").value.trim();
+  const server = document.getElementById("editPointServer").value.trim();
+  const x = document.getElementById("editPointX").value.trim();
+  const y = document.getElementById("editPointY").value.trim();
+  const z = document.getElementById("editPointZ").value.trim();
+  const radius = Number(document.getElementById("editPointRadius").value);
+
+  if (!name || !server) {
+    await showModal("Ошибка", "Заполни название точки и сервер.");
     return;
   }
 
-  const y = prompt("Координата Y:", p.y);
-  if (y === null || y.trim() === "" || !Number.isFinite(Number(y))) {
-    alert("Некорректная координата Y");
+  if (
+    x === "" || y === "" || z === "" ||
+    !Number.isFinite(Number(x)) ||
+    !Number.isFinite(Number(y)) ||
+    !Number.isFinite(Number(z))
+  ) {
+    await showModal("Ошибка", "Проверь координаты X, Y и Z.");
     return;
   }
 
-  const z = prompt("Координата Z:", p.z);
-  if (z === null || z.trim() === "" || !Number.isFinite(Number(z))) {
-    alert("Некорректная координата Z");
-    return;
-  }
-
-  const radiusInput = prompt("Радиус от 1 до 100 метров:", p.radius);
-  if (radiusInput === null) return;
-
-  const radius = Number(radiusInput);
   if (!Number.isFinite(radius) || radius < 1 || radius > 100) {
-    alert("Радиус должен быть от 1 до 100 метров");
+    await showModal("Ошибка", "Радиус должен быть от 1 до 100 метров.");
     return;
   }
 
-  p.name = name.trim();
-  p.server = server.trim();
-  p.x = x.trim();
-  p.y = y.trim();
-  p.z = z.trim();
+  p.name = name;
+  p.server = server;
+  p.x = x;
+  p.y = y;
+  p.z = z;
   p.radius = radius;
 
   save();
   log("Изменена точка: " + p.name);
+
   renderPoints();
   renderAssignments();
   renderAccounts();
-}
 
+  document.getElementById("editPointModal").style.display = "none";
+  editingPointIndex = null;
+
+  await showModal("Готово", "Точка успешно сохранена!");
+});
+});
 function renderAccounts() {
   document.getElementById("accounts").innerHTML =
     accounts.length ? accounts.map((a, i) => {
@@ -490,35 +694,60 @@ function renderPoints() {
 }
 function renderBotPoints() {
   const select = document.getElementById("botPoint");
+
   if (!select) return;
 
-  select.innerHTML =
-    '<option value="">Точка не выбрана</option>' +
-    points.map(p =>
-      `<option value="${safe(p.id)}" ${p.id === botPoint ? "selected" : ""}>
-        ${safe(p.name)} — ${safe(p.server)}
-      </option>`
-    ).join("");
+  select.innerHTML = `
+    <option value="">Точка не выбрана</option>
+    ${points.map(point => `
+      <option value="${safe(point.id)}"
+        ${point.id === botPoint ? "selected" : ""}>
+        ${safe(point.name)} — ${safe(point.server)}
+      </option>
+    `).join("")}
+  `;
 }
 function renderAssignments() {
-  document.getElementById("assignments").innerHTML =
-    accounts.length ? accounts.map((a, i) => {
-      let options = points.filter(
-        p => p.server.toLowerCase() === a.server.toLowerCase()
-      );
-      let selected = options.some(p => p.id === a.pointId) ? a.pointId : "";
+  const container = document.getElementById("assignments");
 
-      return `<div class="item">
-        <b>${safe(a.nickname)}</b>
-        <select onchange="assignPoint(${i}, this.value)">
+  if (accounts.length === 0) {
+    container.innerHTML = '<p class="note">Сначала добавь аккаунт.</p>';
+    return;
+  }
+
+  container.innerHTML = accounts.map((account, index) => {
+    const serverPoints = points.filter(point =>
+      point.server.toLowerCase() === account.server.toLowerCase()
+    );
+
+    const hasSelectedPoint = serverPoints.some(point =>
+      point.id === account.pointId
+    );
+
+    const selectedPoint = hasSelectedPoint ? account.pointId : "";
+
+    return `
+      <div class="item">
+        <b>${safe(account.nickname)}</b>
+        <p class="note">Сервер: ${safe(account.server)}</p>
+
+        <select onchange="assignPoint(${index}, this.value)">
           <option value="">Не назначена</option>
-          ${options.map(p =>
-            `<option value="${safe(p.id)}" ${p.id === selected ? "selected" : ""}>${safe(p.name)}</option>`
-          ).join("")}
+
+          ${serverPoints.map(point => `
+            <option value="${safe(point.id)}"
+              ${point.id === selectedPoint ? "selected" : ""}>
+              ${safe(point.name)}
+            </option>
+          `).join("")}
         </select>
-        ${options.length ? "" : '<p class="note">Нет точек для этого сервера.</p>'}
-      </div>`;
-    }).join("") : '<p class="note">Сначала добавь аккаунт.</p>';
+
+        ${serverPoints.length === 0
+          ? '<p class="note">Нет точек для этого сервера.</p>'
+          : ''}
+      </div>
+    `;
+  }).join("");
 }
 function showModal(title, message, type = "info") {
   return new Promise((resolve) => {
@@ -553,17 +782,25 @@ function showModal(title, message, type = "info") {
     cancelBtn.addEventListener("click", onCancel);
   });
 }
-function clearLogs() {
+async function clearLogs() {
   if (logs.length === 0) {
-    alert("Журнал уже пуст!");
+    await showModal("Внимание", "Журнал уже пуст!");
     return;
   }
 
-  if (!confirm("Точно очистить весь журнал?")) return;
+  const confirmed = await showModal(
+    "Очистка журнала",
+    "Точно очистить весь журнал?",
+    "confirm"
+  );
+
+  if (!confirmed) return;
 
   logs = [];
   save();
   renderLogs();
+
+  await showModal("Готово", "Журнал успешно очищен!");
 }
 function renderLogs() {
   document.getElementById("logs").innerHTML =
@@ -577,17 +814,25 @@ function renderBotLogs() {
       `<div class="item">${safe(l)}</div>`
     ).join("") : "Записей пока нет.";
 }
-function clearBotLogs() {
+async function clearBotLogs() {
   if (botLogs.length === 0) {
-    alert("Журнал бота уже пуст!");
+    await showModal("Внимание", "Журнал бота уже пуст!");
     return;
   }
 
-  if (!confirm("Точно очистить журнал бота?")) return;
+  const confirmed = await showModal(
+    "Очистка журнала бота",
+    "Точно очистить журнал бота?",
+    "confirm"
+  );
+
+  if (!confirmed) return;
 
   botLogs = [];
   save();
   renderBotLogs();
+
+  await showModal("Готово", "Журнал бота успешно очищен!");
 }
 renderAccounts();
 renderPoints();
@@ -611,10 +856,18 @@ async function restoreSession() {
     }
 }
 async function logout() {
+    const confirmed = await showModal(
+        "Выход из аккаунта",
+        "Вы действительно хотите выйти из аккаунта?",
+        "confirm"
+    );
+
+    if (!confirmed) return;
+
     const { error } = await supabaseClient.auth.signOut();
 
     if (error) {
-        alert("Ошибка выхода: " + error.message);
+        await showModal("Ошибка", "Не удалось выйти из аккаунта: " + error.message);
         return;
     }
 
@@ -658,16 +911,25 @@ document.getElementById("appContent").style.display = "block";
       <button id="modalConfirm">Подтвердить</button>
     </div>
   </div>
-</div><div class="modal-overlay" id="customModal">
+</div>
+
+<div class="modal-overlay" id="editPointModal">
   <div class="modal-box">
-    <h2 id="modalTitle">Подтверждение</h2>
-    <p id="modalMessage">Вы уверены?</p>
+    <h2>Редактирование точки</h2>
+
+    <input id="editPointName" placeholder="Название точки">
+    <input id="editPointServer" placeholder="Сервер">
+    <input id="editPointX" type="number" placeholder="Координата X">
+    <input id="editPointY" type="number" placeholder="Координата Y">
+    <input id="editPointZ" type="number" placeholder="Координата Z">
+    <input id="editPointRadius" type="number" min="1" max="100" placeholder="Радиус (1–100 м)">
 
     <div class="modal-buttons">
-      <button class="secondary" id="modalCancel">Отмена</button>
-      <button id="modalConfirm">Подтвердить</button>
+      <button class="secondary" id="editPointCancel">Отмена</button>
+      <button id="editPointSave">Сохранить</button>
     </div>
   </div>
 </div>
+
 </body>
 </html>
