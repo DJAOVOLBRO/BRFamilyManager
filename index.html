@@ -17,12 +17,104 @@ button{background:#d8323c;border:0;font-weight:bold;cursor:pointer}
 .note{color:#aab2c0;font-size:13px}
 .status{color:#ff5555}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-max-width:500px{.grid{grid-template-columns:1fr}}
+max-width: 500px {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
+/* Стеклянные модальные окна */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 8, 25, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 99999;
+}
+
+.modal-box {
+  width: min(90%, 420px);
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 22px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.18),
+    rgba(255, 255, 255, 0.06)
+  );
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  color: white;
+  text-align: center;
+  animation: glassAppear 0.25s ease;
+}
+
+@keyframes glassAppear {
+  from {
+    opacity: 0;
+    transform: translateY(15px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-box h2 {
+  margin-top: 0;
+  color: white;
+}
+
+.modal-box p {
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.5;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.modal-buttons button {
+  flex: 1;
+}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = "https://xzriqlftnzrdkhixdifb.supabase.co";
+const SUPABASE_KEY = "sb_publishable_JJuyhduxnR4gZJV5HAiuYQ_SyZA6OyN";
+
+const supabaseClient = supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_KEY
+);
+supabaseClient
+    .from("game_accounts")
+    .select("id")
+    .limit(1)
+    .then(({ data, error }) => {
+        console.log("Проверка Supabase:", { data, error });
+    });
+</script>
 </head>
 <body>
 <div class="container">
+  <div class="card" id="loginCard">
+    <h2>Вход в BR Family Manager</h2>
+    <input id="loginEmail" type="email" placeholder="Электронная почта">
+    <input id="loginPassword" type="password" placeholder="Пароль">
+    <button onclick="login()">Войти</button>
+    <p class="note" id="loginMessage"></p>
+</div>
+<div id="appContent" style="display: none;">
 <h1>BR Family Manager</h1>
+<button class="secondary" onclick="logout()">Выйти из аккаунта</button>
 <p class="note">Панель управления аккаунтами и точками набора</p>
 
 <div class="card">
@@ -53,6 +145,11 @@ max-width:500px{.grid{grid-template-columns:1fr}}
 </div>
 <div class="card">
   <h2>Журнал бота</h2>
+
+  <button class="secondary" onclick="clearBotLogs()">
+    Очистить журнал бота
+  </button>
+
   <div id="botLogs">
     Записей пока нет.
   </div>
@@ -135,24 +232,30 @@ function logBot(message) {
   save();
   renderBotLogs();
 }
-function startBot() {
+async function startBot() {
   if (botRunning) {
-    alert("Бот уже запущен!");
-    return;
-  }
-  if (!botPoint) {
-    alert("Сначала выбери точку набора!");
-    return;
-  }
-  if (!confirm("Вы уверены, что хотите запустить бота?")) {
+    await showModal("Внимание", "Бот уже запущен!");
     return;
   }
 
+  if (!botPoint) {
+    await showModal("Внимание", "Сначала выбери точку набора!");
+    return;
+  }
+
+  const confirmed = await showModal(
+    "Запуск бота",
+    "Вы уверены, что хотите запустить бота?",
+    "confirm"
+  );
+
+  if (!confirmed) return;
+
   document.getElementById("botStatus").textContent = "Запущен (тест)";
- botRunning = true;
-save();
-log("Бот запущен в тестовом режиме");
-logBot("Бот запущен");
+  botRunning = true;
+  save();
+  log("Бот запущен в тестовом режиме");
+  logBot("Бот запущен");
 }
 
 function stopBot() {
@@ -175,10 +278,6 @@ function toggleAccountStatus(index) {
   log("Статус аккаунта " + accounts[index].nickname + ": " + (accounts[index].online ? "Онлайн" : "Оффлайн"));
   renderAccounts();
 }
-  botRunning = true;
-save();
-log("Бот запущен в тестовом режиме");
-logBot("Бот запущен");
 
 function stopBot() {
   if (!botRunning) {
@@ -421,8 +520,47 @@ function renderAssignments() {
       </div>`;
     }).join("") : '<p class="note">Сначала добавь аккаунт.</p>';
 }
+function showModal(title, message, type = "info") {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("customModal");
+    document.getElementById("modalTitle").textContent = title;
+    document.getElementById("modalMessage").textContent = message;
+
+    const confirmBtn = document.getElementById("modalConfirm");
+    const cancelBtn = document.getElementById("modalCancel");
+
+    confirmBtn.textContent = type === "confirm" ? "Подтвердить" : "Понятно";
+    cancelBtn.style.display = type === "confirm" ? "block" : "none";
+
+    modal.style.display = "flex";
+
+    function finish(result) {
+      modal.style.display = "none";
+      confirmBtn.removeEventListener("click", onConfirm);
+      cancelBtn.removeEventListener("click", onCancel);
+      resolve(result);
+    }
+
+    function onConfirm() {
+      finish(true);
+    }
+
+    function onCancel() {
+      finish(false);
+    }
+
+    confirmBtn.addEventListener("click", onConfirm);
+    cancelBtn.addEventListener("click", onCancel);
+  });
+}
 function clearLogs() {
+  if (logs.length === 0) {
+    alert("Журнал уже пуст!");
+    return;
+  }
+
   if (!confirm("Точно очистить весь журнал?")) return;
+
   logs = [];
   save();
   renderLogs();
@@ -439,6 +577,18 @@ function renderBotLogs() {
       `<div class="item">${safe(l)}</div>`
     ).join("") : "Записей пока нет.";
 }
+function clearBotLogs() {
+  if (botLogs.length === 0) {
+    alert("Журнал бота уже пуст!");
+    return;
+  }
+
+  if (!confirm("Точно очистить журнал бота?")) return;
+
+  botLogs = [];
+  save();
+  renderBotLogs();
+}
 renderAccounts();
 renderPoints();
 renderBotPoints();
@@ -447,6 +597,77 @@ document.getElementById("botStatus").textContent =
 renderAssignments();
 renderLogs();
 renderBotLogs();
+async function restoreSession() {
+    const { data, error } = await supabaseClient.auth.getSession();
+
+    if (error) {
+        console.error("Ошибка проверки сессии:", error.message);
+        return;
+    }
+
+    if (data.session) {
+        document.getElementById("loginCard").style.display = "none";
+        document.getElementById("appContent").style.display = "block";
+    }
+}
+async function logout() {
+    const { error } = await supabaseClient.auth.signOut();
+
+    if (error) {
+        alert("Ошибка выхода: " + error.message);
+        return;
+    }
+
+    document.getElementById("appContent").style.display = "none";
+    document.getElementById("loginCard").style.display = "block";
+    document.getElementById("loginPassword").value = "";
+    document.getElementById("loginMessage").textContent = "";
+}
+restoreSession();
+async function login() {
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const message = document.getElementById("loginMessage");
+
+    message.textContent = "Выполняется вход...";
+
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: email,
+        password: password
+    });
+
+    if (error) {
+        message.textContent = "Ошибка входа: " + error.message;
+        return;
+    }
+
+    message.textContent = "Вход выполнен успешно!";
+    document.getElementById("loginCard").style.display = "none";
+document.getElementById("appContent").style.display = "block";
+}
 </script>
+</div>
+</div>
+<div class="modal-overlay" id="customModal">
+  <div class="modal-box">
+    <h2 id="modalTitle">Подтверждение</h2>
+    <p id="modalMessage">Вы уверены?</p>
+
+    <div class="modal-buttons">
+      <button class="secondary" id="modalCancel">Отмена</button>
+      <button id="modalConfirm">Подтвердить</button>
+    </div>
+  </div>
+</div><div class="modal-overlay" id="customModal">
+  <div class="modal-box">
+    <h2 id="modalTitle">Подтверждение</h2>
+    <p id="modalMessage">Вы уверены?</p>
+
+    <div class="modal-buttons">
+      <button class="secondary" id="modalCancel">Отмена</button>
+      <button id="modalConfirm">Подтвердить</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
