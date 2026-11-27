@@ -508,42 +508,68 @@ async function addAccount() {
 }
 
  async function addPoint() {
-  let name = document.getElementById("pointName").value.trim();
-  let server = document.getElementById("pointServer").value.trim();
-  let x = document.getElementById("coordX").value.trim();
-  let y = document.getElementById("coordY").value.trim();
-  let z = document.getElementById("coordZ").value.trim();
-  let radius = Number(document.getElementById("radius").value);
+  const name = document.getElementById("pointName").value.trim();
+  const server = document.getElementById("pointServer").value.trim();
+  const x = document.getElementById("coordX").value.trim();
+  const y = document.getElementById("coordY").value.trim();
+  const z = document.getElementById("coordZ").value.trim();
+  const radius = Number(document.getElementById("radius").value);
 
   if (!name || !server || x === "" || y === "" || z === "") {
-  await showModal("Не все данные заполнены", "Заполни название, сервер и координаты.");
-  return;
-}
+    await showModal("Не все данные заполнены", "Заполни название, сервер и координаты.");
+    return;
+  }
 
   if (![x, y, z].every(v => Number.isFinite(Number(v)))) {
-  await showModal("Ошибка координат", "Координаты X, Y и Z должны быть числами.");
-  return;
-}
+    await showModal("Ошибка координат", "Координаты X, Y и Z должны быть числами.");
+    return;
+  }
 
   if (!Number.isFinite(radius) || radius < 1 || radius > 100) {
-  await showModal("Ошибка радиуса", "Радиус должен быть от 1 до 100 метров.");
-  return;
-}
+    await showModal("Ошибка радиуса", "Радиус должен быть от 1 до 100 метров.");
+    return;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("gathering_points")
+    .insert({
+      name,
+      server,
+      x: Number(x),
+      y: Number(y),
+      z: Number(z),
+      radius
+    })
+    .select()
+    .single();
+
+  if (error) {
+    await showModal("Ошибка сохранения", error.message);
+    return;
+  }
 
   points.push({
-    id: crypto.randomUUID(),
-    name, server, x, y, z, radius
+    id: data.id,
+    name: data.name,
+    server: data.server,
+    x: data.x,
+    y: data.y,
+    z: data.z,
+    radius: data.radius
   });
 
   save();
   log("Добавлена точка: " + name);
   renderPoints();
   renderAssignments();
+  renderBotPoints();
 
-  ["pointName","pointServer","coordX","coordY","coordZ"]
+  ["pointName", "pointServer", "coordX", "coordY", "coordZ"]
     .forEach(id => document.getElementById(id).value = "");
+
   document.getElementById("radius").value = 10;
-  await showModal("Готово", "Точка «" + name + "» успешно добавлена!");
+
+  await showModal("Готово", "Точка «" + name + "» сохранена в Supabase!");
 }
 
 function assignPoint(accountIndex, pointId) {
@@ -842,19 +868,76 @@ document.getElementById("botStatus").textContent =
 renderAssignments();
 renderLogs();
 renderBotLogs();
-async function restoreSession() {
-    const { data, error } = await supabaseClient.auth.getSession();
+async function loadPointsFromSupabase() {
+  const { data, error } = await supabaseClient
+    .from("gathering_points")
+    .select("*")
+    .order("created_at", { ascending: true });
 
-    if (error) {
-        console.error("Ошибка проверки сессии:", error.message);
-        return;
-    }
+  if (error) {
+    await showModal("Ошибка загрузки точек", error.message);
+    return;
+  }
 
-    if (data.session) {
-        document.getElementById("loginCard").style.display = "none";
-        document.getElementById("appContent").style.display = "block";
-    }
+  points = data.map(point => ({
+    id: String(point.id),
+    name: point.name,
+    server: point.server,
+    x: point.x,
+    y: point.y,
+    z: point.z,
+    radius: point.radius,
+    notes: point.notes || ""
+  }));
+
+  save();
+  renderPoints();
+  renderBotPoints();
+  renderAssignments();
 }
+async function restoreSession() {
+  const { data, error } = await supabaseClient.auth.getSession();
+
+  if (error) {
+    console.error("Ошибка проверки сессии:", error.message);
+    return;
+  }
+
+  if (!data.session) {
+    return;
+  }
+
+  document.getElementById("loginCard").style.display = "none";
+  document.getElementById("appContent").style.display = "block";
+
+  // Загружаем аккаунты из Supabase
+  const { data: cloudAccounts, error: accountsError } =
+    await supabaseClient
+      .from("game_accounts")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+  if (accountsError) {
+    await showModal("Ошибка загрузки аккаунтов", accountsError.message);
+    return;
+  }
+
+  accounts = cloudAccounts.map(account => ({
+    id: account.id,
+    nickname: account.nickname,
+    server: account.server,
+    pointId: account.point_id ? String(account.point_id) : "",
+    online: account.status === "Онлайн"
+  }));
+
+  save();
+  renderAccounts();
+  renderAssignments();
+
+  // Загружаем точки из Supabase
+  await loadPointsFromSupabase();
+}
+
 async function logout() {
     const confirmed = await showModal(
         "Выход из аккаунта",
