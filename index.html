@@ -353,9 +353,21 @@ window.addEventListener("DOMContentLoaded", function() {
   }
 });
 
-function log(message) {
+async function log(message) {
+  const { error } = await supabaseClient
+    .from("activity_logs")
+    .insert({
+      action: message,
+      details: message
+    });
+
+  if (error) {
+    console.error("Ошибка записи журнала в Supabase:", error.message);
+  }
+
   logs.unshift(new Date().toLocaleString("ru-RU") + " — " + message);
   logs = logs.slice(0, 100);
+
   save();
   renderLogs();
 }
@@ -426,21 +438,33 @@ status.className = "bot-status offline";
   log("Бот остановлен");
   logBot("Бот остановлен");
 }
-function toggleAccountStatus(index) {
-  accounts[index].online = !accounts[index].online;
+async function toggleAccountStatus(index) {
+  const account = accounts[index];
+  const newStatus = account.online ? "Оффлайн" : "Онлайн";
+
+  const { data, error } = await supabaseClient
+    .from("game_accounts")
+    .update({ status: newStatus })
+    .eq("id", account.id)
+    .select("id, status")
+    .single();
+
+  if (error) {
+    await showModal("Ошибка изменения статуса", error.message);
+    return;
+  }
+
+  account.online = data.status === "Онлайн";
+
   save();
-  log("Статус аккаунта " + accounts[index].nickname + ": " + (accounts[index].online ? "Онлайн" : "Оффлайн"));
+  log("Статус аккаунта " + account.nickname + ": " + data.status);
   renderAccounts();
 }
 
-function toggleAccountStatus(index) {
-  accounts[index].online = !accounts[index].online;
-  save();
-  log("Статус аккаунта " + accounts[index].nickname + ": " + (accounts[index].online ? "Онлайн" : "Оффлайн"));
-  renderAccounts();
-}
+
 async function deleteAccount(index) {
-  const nickname = accounts[index].nickname;
+  const account = accounts[index];
+  const nickname = account.nickname;
 
   const confirmed = await showModal(
     "Удаление аккаунта",
@@ -450,14 +474,28 @@ async function deleteAccount(index) {
 
   if (!confirmed) return;
 
+  const { error } = await supabaseClient
+    .from("game_accounts")
+    .delete()
+    .eq("id", account.id);
+
+  if (error) {
+    await showModal("Ошибка удаления", error.message);
+    return;
+  }
+
   accounts.splice(index, 1);
   save();
+
   log("Удалён аккаунт: " + nickname);
 
   renderAccounts();
   renderAssignments();
 
-  await showModal("Готово", "Аккаунт " + nickname + " удалён!");
+  await showModal(
+    "Готово",
+    "Аккаунт " + nickname + " удалён из Supabase!"
+  );
 }
 async function addAccount() {
   if (accounts.length >= 5) {
@@ -572,16 +610,52 @@ async function addAccount() {
   await showModal("Готово", "Точка «" + name + "» сохранена в Supabase!");
 }
 
-function assignPoint(accountIndex, pointId) {
-  accounts[accountIndex].pointId = pointId;
+async function assignPoint(accountIndex, pointId) {
+  const account = accounts[accountIndex];
+
+  if (!account) return;
+
+  // Преобразуем ID точки в число для поля bigint в Supabase
+  const cloudPointId = pointId ? Number(pointId) : null;
+
+  if (pointId && !Number.isSafeInteger(cloudPointId)) {
+    await showModal("Ошибка", "Некорректный ID точки.");
+    return;
+  }
+
+  // Сначала сохраняем привязку в Supabase
+  const { data, error } = await supabaseClient
+    .from("game_accounts")
+    .update({ point_id: cloudPointId })
+    .eq("id", account.id)
+    .select("id, point_id")
+    .single();
+
+  if (error) {
+    await showModal("Ошибка сохранения точки", error.message);
+    return;
+  }
+
+  // Обновляем локальные данные только после успешного сохранения
+  account.pointId = data.point_id ? String(data.point_id) : "";
+
   save();
-  log("Изменена точка аккаунта: " + accounts[accountIndex].nickname);
+
+  log("Изменена точка аккаунта: " + account.nickname);
+
   renderAccounts();
   renderAssignments();
+
+  await showModal("Готово", "Точка аккаунта успешно сохранена в Supabase!");
 }
 
 async function deletePoint(index) {
-  const name = points[index].name;
+  const point = points[index];
+
+  if (!point) return;
+
+  const name = point.name;
+  const id = point.id;
 
   const confirmed = await showModal(
     "Удаление точки",
@@ -591,25 +665,45 @@ async function deletePoint(index) {
 
   if (!confirmed) return;
 
-  const id = points[index].id;
+  // Сначала удаляем точку из Supabase
+  const { error } = await supabaseClient
+    .from("gathering_points")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    await showModal("Ошибка удаления", error.message);
+    return;
+  }
+
+  // Удаляем точку из локального списка
   points.splice(index, 1);
 
-  if (botPoint === id) {
+  // Сбрасываем выбранную точку бота
+  if (String(botPoint) === String(id)) {
     botPoint = "";
   }
 
-  accounts.forEach(a => {
-    if (a.pointId === id) a.pointId = "";
+  // Убираем привязку аккаунтов к удалённой точке
+  accounts.forEach(account => {
+    if (String(account.pointId) === String(id)) {
+      account.pointId = "";
+    }
   });
 
   save();
+
   log("Удалена точка: " + name);
+
   renderPoints();
   renderBotPoints();
   renderAssignments();
   renderAccounts();
 
-  await showModal("Готово", "Точка «" + name + "» удалена!");
+  await showModal(
+    "Готово",
+    "Точка «" + name + "» удалена из Supabase!"
+  );
 }
 
 let editingPointIndex = null;
@@ -636,56 +730,76 @@ window.addEventListener("DOMContentLoaded", function() {
 });
 window.addEventListener("DOMContentLoaded", function() {
   document.getElementById("editPointSave").addEventListener("click", async function() {
-  if (editingPointIndex === null) return;
+    if (editingPointIndex === null) return;
 
-  const p = points[editingPointIndex];
+    const p = points[editingPointIndex];
 
-  const name = document.getElementById("editPointName").value.trim();
-  const server = document.getElementById("editPointServer").value.trim();
-  const x = document.getElementById("editPointX").value.trim();
-  const y = document.getElementById("editPointY").value.trim();
-  const z = document.getElementById("editPointZ").value.trim();
-  const radius = Number(document.getElementById("editPointRadius").value);
+    const name = document.getElementById("editPointName").value.trim();
+    const server = document.getElementById("editPointServer").value.trim();
+    const x = document.getElementById("editPointX").value.trim();
+    const y = document.getElementById("editPointY").value.trim();
+    const z = document.getElementById("editPointZ").value.trim();
+    const radius = Number(document.getElementById("editPointRadius").value);
 
-  if (!name || !server) {
-    await showModal("Ошибка", "Заполни название точки и сервер.");
-    return;
-  }
+    if (!name || !server) {
+      await showModal("Ошибка", "Заполни название точки и сервер.");
+      return;
+    }
 
-  if (
-    x === "" || y === "" || z === "" ||
-    !Number.isFinite(Number(x)) ||
-    !Number.isFinite(Number(y)) ||
-    !Number.isFinite(Number(z))
-  ) {
-    await showModal("Ошибка", "Проверь координаты X, Y и Z.");
-    return;
-  }
+    if (
+      x === "" || y === "" || z === "" ||
+      !Number.isFinite(Number(x)) ||
+      !Number.isFinite(Number(y)) ||
+      !Number.isFinite(Number(z))
+    ) {
+      await showModal("Ошибка", "Проверь координаты X, Y и Z.");
+      return;
+    }
 
-  if (!Number.isFinite(radius) || radius < 1 || radius > 100) {
-    await showModal("Ошибка", "Радиус должен быть от 1 до 100 метров.");
-    return;
-  }
+    if (!Number.isFinite(radius) || radius < 1 || radius > 100) {
+      await showModal("Ошибка", "Радиус должен быть от 1 до 100 метров.");
+      return;
+    }
 
-  p.name = name;
-  p.server = server;
-  p.x = x;
-  p.y = y;
-  p.z = z;
-  p.radius = radius;
+    const { data, error } = await supabaseClient
+      .from("gathering_points")
+      .update({
+        name,
+        server,
+        x: Number(x),
+        y: Number(y),
+        z: Number(z),
+        radius
+      })
+      .eq("id", p.id)
+      .select()
+      .single();
 
-  save();
-  log("Изменена точка: " + p.name);
+    if (error) {
+      await showModal("Ошибка сохранения", error.message);
+      return;
+    }
 
-  renderPoints();
-  renderAssignments();
-  renderAccounts();
+    p.name = data.name;
+    p.server = data.server;
+    p.x = data.x;
+    p.y = data.y;
+    p.z = data.z;
+    p.radius = data.radius;
 
-  document.getElementById("editPointModal").style.display = "none";
-  editingPointIndex = null;
+    save();
+    log("Изменена точка: " + p.name);
 
-  await showModal("Готово", "Точка успешно сохранена!");
-});
+    renderPoints();
+    renderBotPoints();
+    renderAssignments();
+    renderAccounts();
+
+    document.getElementById("editPointModal").style.display = "none";
+    editingPointIndex = null;
+
+    await showModal("Готово", "Точка успешно обновлена в Supabase!");
+  });
 });
 function renderAccounts() {
   document.getElementById("accounts").innerHTML =
@@ -743,14 +857,15 @@ function renderAssignments() {
 
   container.innerHTML = accounts.map((account, index) => {
     const serverPoints = points.filter(point =>
-      point.server.toLowerCase() === account.server.toLowerCase()
+      String(point.server || "").toLowerCase() ===
+      String(account.server || "").toLowerCase()
     );
+
+    const selectedPoint = String(account.pointId || "");
 
     const hasSelectedPoint = serverPoints.some(point =>
-      point.id === account.pointId
+      String(point.id) === selectedPoint
     );
-
-    const selectedPoint = hasSelectedPoint ? account.pointId : "";
 
     return `
       <div class="item">
@@ -762,7 +877,7 @@ function renderAssignments() {
 
           ${serverPoints.map(point => `
             <option value="${safe(point.id)}"
-              ${point.id === selectedPoint ? "selected" : ""}>
+              ${String(point.id) === selectedPoint && hasSelectedPoint ? "selected" : ""}>
               ${safe(point.name)}
             </option>
           `).join("")}
